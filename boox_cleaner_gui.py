@@ -1,9 +1,13 @@
 """
-Boox Leaf3 Cleaner - GUI
-=========================
-대상 기기: Boox Leaf3 (D60_SMT_V02_2022_0309, Android 11)
-테스트 환경: Windows 11 + ADB platform-tools
-다른 Boox 모델/펌웨어에서는 패키지명이 다를 수 있음
+Boox Cleaner - GUI
+===================
+Boox E-ink 기기 블로트웨어 제거 도구.
+기기를 자동 감지하여 모델별 제거 대상을 표시합니다.
+
+지원 기기:
+  - Boox Leaf3 (D60, Android 11, 펌웨어 D60_SMT_V02_2022_0309)
+  - Boox Palma2 Pro (Palma2_Pro_C, Android 15, 펌웨어 4.1.1-rel)
+
 제거 방식: pm uninstall -k --user 0 (사용자 레벨, 공장초기화 시 복구됨)
 """
 
@@ -17,7 +21,6 @@ from datetime import datetime
 import customtkinter as ctk
 
 # ── ADB 경로 후보 ────────────────────────────────────────
-# PyInstaller --onefile 시 exe 위치 기준으로 탐색
 if getattr(sys, "frozen", False):
     _BASE_DIR = os.path.dirname(sys.executable)
 else:
@@ -30,8 +33,30 @@ ADB_PATHS = [
     os.path.expanduser(r"~\platform-tools\adb.exe"),
 ]
 
-# ── 제거 대상 패키지 ─────────────────────────────────────
-PACKAGES = {
+# ── 기기 프로필 ──────────────────────────────────────────
+
+DEVICE_PROFILES = {
+    "Leaf3": {
+        "display_name": "Boox Leaf3",
+        "codename": "D60",
+        "firmware": "D60_SMT_V02_2022_0309",
+        "android": "11 (API 30)",
+        "platform": "Qualcomm Bengal",
+        "security_patch": "2024-02-01",
+    },
+    "Palma2_Pro_C": {
+        "display_name": "Boox Palma2 Pro",
+        "codename": "Palma2_Pro_C",
+        "firmware": "4.1.1-rel (2025-12-27)",
+        "android": "15 (API 35)",
+        "platform": "Qualcomm Lito",
+        "security_patch": "2025-10-01",
+    },
+}
+
+# ── 공통 제거 대상 패키지 (모든 Boox 기기) ────────────────
+
+COMMON_PACKAGES = {
     "Boox 블로트웨어": [
         ("com.onyx.dict", "사전"),
         ("com.onyx.mail", "메일"),
@@ -74,6 +99,27 @@ PACKAGES = {
         ("com.android.dreams.basic", "스크린세이버"),
         ("com.android.dreams.phototable", "스크린세이버(포토)"),
     ],
+}
+
+# ── 기기별 추가 제거 대상 ────────────────────────────────
+
+DEVICE_EXTRA_PACKAGES = {
+    "Palma2_Pro_C": {
+        "Palma2 Pro 전용": [
+            ("com.onyx.android.note", "노트"),
+            ("com.onyx.tscalibration", "TS 캘리브레이션"),
+            ("org.codeaurora.snapcam", "카메라 (SnapCam)"),
+            ("org.codeaurora.dialer", "다이얼러"),
+            ("com.android.contacts", "연락처 앱"),
+            ("com.android.mms", "문자/MMS"),
+            ("com.android.stk", "SIM 툴킷"),
+            ("com.google.android.apps.books", "Google Books"),
+            ("com.google.android.tts", "Google TTS"),
+            ("com.android.emergency", "긴급 정보"),
+            ("com.android.storagemanager", "저장공간 관리"),
+            ("com.android.soundpicker", "소리 선택기"),
+        ],
+    },
 }
 
 KEEP_PACKAGES = {
@@ -119,9 +165,41 @@ def get_device() -> str | None:
     return None
 
 
+def get_device_model() -> str:
+    """연결된 기기의 모델명을 반환."""
+    _, out = run_adb("shell", "getprop", "ro.product.model")
+    return out.strip()
+
+
+def get_device_info() -> dict[str, str]:
+    """연결된 기기의 상세 정보를 반환."""
+    props = {
+        "model": "ro.product.model",
+        "brand": "ro.product.brand",
+        "firmware": "ro.build.display.id",
+        "android": "ro.build.version.release",
+        "sdk": "ro.build.version.sdk",
+        "platform": "ro.board.platform",
+        "security_patch": "ro.build.version.security_patch",
+    }
+    info = {}
+    for key, prop in props.items():
+        _, val = run_adb("shell", "getprop", prop)
+        info[key] = val.strip()
+    return info
+
+
 def get_installed_packages() -> set[str]:
     _, out = run_adb("shell", "pm", "list", "packages", "-e")
     return {line.replace("package:", "").strip() for line in out.splitlines() if line.startswith("package:")}
+
+
+def get_packages_for_device(model: str) -> dict[str, list[tuple[str, str]]]:
+    """기기 모델에 맞는 패키지 목록을 반환."""
+    packages = dict(COMMON_PACKAGES)
+    extras = DEVICE_EXTRA_PACKAGES.get(model, {})
+    packages.update(extras)
+    return packages
 
 
 # ── GUI ──────────────────────────────────────────────────
@@ -129,7 +207,7 @@ def get_installed_packages() -> set[str]:
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("Boox Leaf3 Cleaner")
+        self.title("Boox Cleaner")
         self.geometry("750x820")
         self.minsize(650, 650)
         ctk.set_appearance_mode("dark")
@@ -137,7 +215,9 @@ class App(ctk.CTk):
 
         self.installed: set[str] = set()
         self.checkboxes: dict[str, tuple[ctk.CTkCheckBox, ctk.BooleanVar]] = {}
-        self._current_device: str | None = None  # 현재 연결된 기기 ID
+        self._current_device: str | None = None
+        self._current_model: str = ""
+        self._current_packages: dict[str, list[tuple[str, str]]] = {}
 
         self._build_ui()
         self._start_device_monitor()
@@ -155,23 +235,18 @@ class App(ctk.CTk):
         self.refresh_btn = ctk.CTkButton(top, text="새로고침", width=90, command=self._refresh_device)
         self.refresh_btn.pack(side="right", padx=8, pady=8)
 
-        # 기기 환경 정보
-        info_frame = ctk.CTkFrame(self)
-        info_frame.pack(fill="x", padx=12, pady=(0, 4))
+        # 기기 정보 (동적 업데이트)
+        self.info_frame = ctk.CTkFrame(self)
+        self.info_frame.pack(fill="x", padx=12, pady=(0, 4))
 
-        info_text = (
-            "테스트 기기 정보\n"
-            "  모델: ONYX Boox Leaf3 (코드명: D60)\n"
-            "  펌웨어: D60_SMT_V02_2022_0309\n"
-            "  Android: 11 (API 30) · 플랫폼: Qualcomm Bengal\n"
-            "  보안패치: 2024-02-01\n"
-            "\n"
-            "⚠ 이 도구는 위 기기/펌웨어에서만 테스트되었습니다.\n"
-            "  다른 Boox 모델이나 펌웨어 버전에서는 패키지명이 다를 수 있습니다.\n"
-            "  제거 방식: pm uninstall -k --user 0 (사용자 레벨 제거, 공장초기화 시 자동 복구)"
+        self.info_label = ctk.CTkLabel(
+            self.info_frame,
+            text="기기를 연결하면 자동으로 모델을 감지합니다.\n\n"
+                 "지원 기기: Boox Leaf3, Boox Palma2 Pro\n"
+                 "제거 방식: pm uninstall -k --user 0 (사용자 레벨 제거, 공장초기화 시 자동 복구)",
+            font=("Consolas", 11), text_color="gray", justify="left", anchor="w",
         )
-        info_label = ctk.CTkLabel(info_frame, text=info_text, font=("Consolas", 11), text_color="gray", justify="left", anchor="w")
-        info_label.pack(padx=10, pady=6, anchor="w")
+        self.info_label.pack(padx=10, pady=6, anchor="w")
 
         # 중간: 패키지 목록 (스크롤)
         self.list_frame = ctk.CTkScrollableFrame(self, label_text="앱 목록")
@@ -184,9 +259,8 @@ class App(ctk.CTk):
         ctk.CTkButton(sel_frame, text="전체 선택", width=100, command=lambda: self._select_all(True)).pack(side="left", padx=4, pady=4)
         ctk.CTkButton(sel_frame, text="전체 해제", width=100, command=lambda: self._select_all(False)).pack(side="left", padx=4, pady=4)
 
-        installed_label = ctk.CTkLabel(sel_frame, text="", font=("", 12))
-        installed_label.pack(side="right", padx=8, pady=4)
-        self.installed_label = installed_label
+        self.installed_label = ctk.CTkLabel(sel_frame, text="", font=("", 12))
+        self.installed_label.pack(side="right", padx=8, pady=4)
 
         # 버튼
         btn_frame = ctk.CTkFrame(self)
@@ -212,44 +286,85 @@ class App(ctk.CTk):
         self.log_box.see("end")
         self.log_box.configure(state="disabled")
 
-    # ── 기기 자동 감지 ─────────────────────────────────────
+    # ── 기기 정보 표시 ───────────────────────────────────
+
+    def _update_device_info(self, model: str):
+        """기기 감지 후 정보 패널 업데이트."""
+        profile = DEVICE_PROFILES.get(model)
+        if profile:
+            is_known = True
+            info_text = (
+                f"감지된 기기: {profile['display_name']}\n"
+                f"  코드명: {profile['codename']} · 펌웨어: {profile['firmware']}\n"
+                f"  Android: {profile['android']} · 플랫폼: {profile['platform']}\n"
+                f"  보안패치: {profile['security_patch']}\n"
+            )
+        else:
+            is_known = False
+            info = get_device_info()
+            info_text = (
+                f"감지된 기기: {info.get('model', '알 수 없음')} (미등록 모델)\n"
+                f"  브랜드: {info.get('brand', '-')} · 펌웨어: {info.get('firmware', '-')}\n"
+                f"  Android: {info.get('android', '-')} (API {info.get('sdk', '-')}) · 플랫폼: {info.get('platform', '-')}\n"
+                f"  보안패치: {info.get('security_patch', '-')}\n"
+            )
+
+        warn = (
+            "\n⚠ 이 도구는 테스트된 기기/펌웨어에서만 검증되었습니다.\n"
+            "  제거 방식: pm uninstall -k --user 0 (사용자 레벨 제거, 공장초기화 시 자동 복구)"
+        )
+        if not is_known:
+            warn = "\n⚠ 미등록 모델입니다. 공통 Boox 패키지만 표시됩니다. 주의해서 사용하세요." + warn
+
+        self.info_label.configure(text=info_text + warn)
+
+    # ── 기기 자동 감지 ───────────────────────────────────
 
     def _start_device_monitor(self):
-        """3초마다 기기 연결 상태를 백그라운드에서 확인."""
         def poll():
             device = get_device()
-            self.after(0, self._on_device_poll, device)
+            model = get_device_model() if device else ""
+            self.after(0, self._on_device_poll, device, model)
         threading.Thread(target=poll, daemon=True).start()
 
-    def _on_device_poll(self, device: str | None):
+    def _on_device_poll(self, device: str | None, model: str):
         prev = self._current_device
         self._current_device = device
 
         if device and not prev:
-            # 새로 연결됨
-            self.status_label.configure(text=f"연결됨: {device}", text_color="#2ecc71")
-            self._log(f"기기 연결됨: {device}")
+            self._current_model = model
+            self._current_packages = get_packages_for_device(model)
+            display = DEVICE_PROFILES.get(model, {}).get("display_name", model)
+            self.status_label.configure(text=f"연결됨: {display} ({device})", text_color="#2ecc71")
+            self._log(f"기기 연결됨: {display} ({device})")
+            self._update_device_info(model)
             self._refresh_list()
         elif not device and prev:
-            # 연결 해제됨
             self.status_label.configure(text="기기 없음 — USB 디버깅 확인", text_color="#e74c3c")
             self._log("기기 연결 해제됨")
+            self._current_model = ""
         elif device and prev and device != prev:
-            # 다른 기기로 변경됨
-            self.status_label.configure(text=f"연결됨: {device}", text_color="#2ecc71")
-            self._log(f"기기 변경됨: {device}")
+            self._current_model = model
+            self._current_packages = get_packages_for_device(model)
+            display = DEVICE_PROFILES.get(model, {}).get("display_name", model)
+            self.status_label.configure(text=f"연결됨: {display} ({device})", text_color="#2ecc71")
+            self._log(f"기기 변경됨: {display} ({device})")
+            self._update_device_info(model)
             self._refresh_list()
 
-        # 3초 후 다시 폴링
         self.after(3000, self._start_device_monitor)
 
     def _refresh_device(self):
-        """수동 새로고침 (버튼용)."""
         device = get_device()
         self._current_device = device
         if device:
-            self.status_label.configure(text=f"연결됨: {device}", text_color="#2ecc71")
-            self._log(f"기기 연결됨: {device}")
+            model = get_device_model()
+            self._current_model = model
+            self._current_packages = get_packages_for_device(model)
+            display = DEVICE_PROFILES.get(model, {}).get("display_name", model)
+            self.status_label.configure(text=f"연결됨: {display} ({device})", text_color="#2ecc71")
+            self._log(f"기기 연결됨: {display} ({device})")
+            self._update_device_info(model)
             self._refresh_list()
         else:
             self.status_label.configure(text="기기 없음 — USB 디버깅 확인", text_color="#e74c3c")
@@ -261,12 +376,12 @@ class App(ctk.CTk):
         self.checkboxes.clear()
 
         self.installed = get_installed_packages()
+        packages = self._current_packages or COMMON_PACKAGES
         total_removable = 0
 
-        for category, pkgs in PACKAGES.items():
+        for category, pkgs in packages.items():
             has_any = any(p in self.installed for p, _ in pkgs)
             if not has_any:
-                # 카테고리 전체 제거됨 — 복구용으로 표시
                 cat_label = ctk.CTkLabel(self.list_frame, text=f"── {category} (모두 제거됨) ──", font=("", 12, "bold"), text_color="gray")
                 cat_label.pack(anchor="w", padx=4, pady=(10, 2))
                 for pkg, name in pkgs:
@@ -318,8 +433,8 @@ class App(ctk.CTk):
         self.refresh_btn.configure(state=state)
 
     def _get_selected(self) -> list[tuple[str, str]]:
-        """선택된 패키지 [(pkg, name)] 반환."""
-        all_pkgs = {p: n for pkgs in PACKAGES.values() for p, n in pkgs}
+        packages = self._current_packages or COMMON_PACKAGES
+        all_pkgs = {p: n for pkgs in packages.values() for p, n in pkgs}
         return [(pkg, all_pkgs.get(pkg, pkg)) for pkg, (_, var) in self.checkboxes.items() if var.get()]
 
     def _on_clean(self):
