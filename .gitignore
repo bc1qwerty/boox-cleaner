@@ -2,3 +2,7 @@ build/
 dist/
 __pycache__/
 *.spec
+release/*.zip
+release/BooxLeaf3Cleaner/*.exe
+release/BooxLeaf3Cleaner/platform-tools/
+.claude/
