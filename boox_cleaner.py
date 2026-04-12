@@ -34,7 +34,6 @@ ADB_PATHS = [
 # ── 제거 대상 패키지 ──────────────────────────────────────
 PACKAGES = {
     "Boox 블로트웨어": [
-        ("com.onyx.dict", "사전"),
         ("com.onyx.mail", "메일"),
         ("com.onyx.clock", "시계"),
         ("com.onyx.igetshop", "Boox 스토어"),
@@ -45,7 +44,6 @@ PACKAGES = {
         ("com.onyx.appmarket", "앱마켓"),
         ("com.onyx.calculator", "계산기"),
         ("com.onyx.easytransfer", "EasyTransfer"),
-        ("com.onyx.android.ksync", "KSync"),
         ("com.onyx.android.production.test", "프로덕션 테스트"),
     ],
     "Boox 키보드 (Google 키보드 사용 시)": [
@@ -54,7 +52,6 @@ PACKAGES = {
     ],
     "Boox 기타": [
         ("com.onyx.floatingbutton", "플로팅 버튼"),
-        ("com.onyx.kreader", "내장 리더"),
     ],
     "Android 불필요 앱": [
         ("org.chromium.chrome", "Chrome 브라우저"),
@@ -78,9 +75,15 @@ PACKAGES = {
 }
 
 # ── 유지해야 할 패키지 (참고용) ───────────────────────────
+# com.onyx (ContentBrowser) 가 실행 중 참조하는 ContentProvider/서비스 공급 패키지.
+# 제거하면 SecurityException 또는 기능별 크래시가 발생하여 기기가 부팅 루프에 빠질 수 있음.
+# (2026-04-12 분석: kreader 제거 → FilesChangedReceiverAction 크래시 → 리커버리 진입 확인)
 KEEP_PACKAGES = {
     "com.onyx": "Boox 런처/코어 (시스템 기능 포함, 제거 금지)",
     "com.onyx.android.onyxotaservice": "펌웨어 업데이트",
+    "com.onyx.kreader": "내장 리더 — com.onyx.content.database.ContentProvider 공급 (제거 시 부팅 크래시)",
+    "com.onyx.android.ksync": "KSync — cloudstorage/group/sync ContentProvider 공급 + 6개 서비스 바인딩",
+    "com.onyx.dict": "사전 — DictionaryProvider/OnyxNewWordProvider 공급 (책 단어 선택 시 호출)",
 }
 
 

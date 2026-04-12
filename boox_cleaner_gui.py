@@ -1,5 +1,5 @@
 """
-Boox Cleaner - GUI v2.1
+Boox Cleaner - GUI v2.2
 ========================
 Boox E-ink 기기 블로트웨어 제거 + 시스템 최적화 도구.
 기기를 자동 감지하여 모델별 제거 대상을 표시합니다.
@@ -7,9 +7,13 @@ Boox E-ink 기기 블로트웨어 제거 + 시스템 최적화 도구.
 지원 기기:
   - Boox Leaf3 (D60, Android 11, 펌웨어 D60_SMT_V02_2022_0309)
   - Boox Palma2 Pro (Palma2_Pro_C, Android 15, 펌웨어 4.1.1-rel)
+
+v2.2 변경사항 (2026-04-12):
+  - kreader/ksync/dict 제거 목록에서 제외 (ContentBrowser 하드 의존성 확인)
+  - 이전 버전으로 정리 후 부팅 크래시(리커버리 진입) 발생 대응
 """
 
-VERSION = "2.1"
+VERSION = "2.2"
 
 import subprocess
 import sys
@@ -58,7 +62,6 @@ DEVICE_PROFILES = {
 
 COMMON_PACKAGES = {
     "Boox 블로트웨어": [
-        ("com.onyx.dict", "사전"),
         ("com.onyx.mail", "메일"),
         ("com.onyx.clock", "시계"),
         ("com.onyx.igetshop", "Boox 스토어"),
@@ -69,7 +72,6 @@ COMMON_PACKAGES = {
         ("com.onyx.appmarket", "앱마켓"),
         ("com.onyx.calculator", "계산기"),
         ("com.onyx.easytransfer", "EasyTransfer"),
-        ("com.onyx.android.ksync", "KSync"),
         ("com.onyx.android.production.test", "프로덕션 테스트"),
     ],
     "Boox 키보드 (Google 키보드 사용 시)": [
@@ -78,7 +80,6 @@ COMMON_PACKAGES = {
     ],
     "Boox 기타": [
         ("com.onyx.floatingbutton", "플로팅 버튼"),
-        ("com.onyx.kreader", "내장 리더"),
     ],
     "Android 불필요 앱": [
         ("org.chromium.chrome", "Chrome 브라우저"),
@@ -233,9 +234,15 @@ PERFORMANCE_SETTINGS = [
     },
 ]
 
+# com.onyx (ContentBrowser) 가 실행 중 참조하는 ContentProvider/서비스 공급 패키지.
+# 제거하면 SecurityException 또는 기능별 크래시가 발생하여 기기가 부팅 루프에 빠질 수 있음.
+# (2026-04-12 분석: kreader 제거 → FilesChangedReceiverAction 크래시 → 리커버리 진입 확인)
 KEEP_PACKAGES = {
     "com.onyx": "Boox 런처/코어",
     "com.onyx.android.onyxotaservice": "펌웨어 업데이트",
+    "com.onyx.kreader": "내장 리더 (content.database.ContentProvider 공급, 제거 금지)",
+    "com.onyx.android.ksync": "KSync (cloudstorage/sync ContentProvider + 서비스 공급)",
+    "com.onyx.dict": "사전 (DictionaryProvider/OnyxNewWordProvider 공급)",
 }
 
 
