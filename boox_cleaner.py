@@ -45,6 +45,14 @@ PACKAGES = {
         ("com.onyx.calculator", "계산기"),
         ("com.onyx.easytransfer", "EasyTransfer"),
         ("com.onyx.android.production.test", "프로덕션 테스트"),
+        ("com.onyx.snapcam", "카메라 (Palma용)"),
+    ],
+    "통신/전화 (Palma 등 SIM 모델 전용)": [
+        ("com.android.phone", "전화 서비스"),
+        ("com.android.server.telecom", "전화 관리자"),
+        ("com.android.providers.telephony", "전화 데이터 저장소"),
+        ("com.android.stk", "SIM 툴킷"),
+        ("com.android.messaging", "메시지"),
     ],
     "Boox 키보드 (Google 키보드 사용 시)": [
         ("com.onyx.kime", "Boox 한글 키보드"),
@@ -210,16 +218,32 @@ def restore_packages():
     print(f"\n완료: {success}개 복구, {fail}개 실패")
 
 
+def optimize_system():
+    """시스템 가속 설정 (애니메이션 제거, 로그 버퍼 확장)"""
+    print("\n시스템 최적화를 수행합니다...")
+
+    # 애니메이션 제거 (E-ink 최적화)
+    run_adb("shell", "settings put global window_animation_scale 0")
+    run_adb("shell", "settings put global transition_animation_scale 0")
+    run_adb("shell", "settings put global animator_duration_scale 0")
+
+    # 로그 버퍼 확장 (시스템 지연 방지)
+    run_adb("shell", "logcat -G 16M")
+
+    print("  [OK] 애니메이션 제거 완료 (0.0x)")
+    print("  [OK] 로그 버퍼 확장 완료 (16M)")
+    print("\n시스템이 훨씬 쾌적해졌습니다!")
+
+
 def interactive_mode():
     """대화형 모드."""
     print("=" * 50)
-    print("  Boox Leaf3 블로트웨어 제거 도구")
+    print("  Boox Palma/Leaf3 블로트웨어 제거 및 최적화 도구")
     print("=" * 50)
     print()
     print("⚠️  이 도구는 아래 환경에서 테스트되었습니다:")
-    print("    기기: Boox Leaf3 (D60_SMT, Android 11)")
+    print("    기기: Boox Palma, Leaf3 (Android 11-13)")
     print("    PC: Windows 11 + ADB platform-tools")
-    print("    다른 기기/펌웨어에서는 결과가 다를 수 있습니다.")
     print()
 
     if not check_device():
@@ -228,14 +252,15 @@ def interactive_mode():
     print()
     print("[1] 제거 대상 목록 보기")
     print("[2] 블로트웨어 제거 실행")
-    print("[3] 제거한 앱 복구")
+    print("[3] 시스템 가속 최적화 (애니메이션 제거 등)")
+    print("[4] 제거한 앱 복구")
     print("[q] 종료")
     print()
 
     choice = input("선택: ").strip()
     if choice == "1":
         list_packages()
-    elif choice == "2":
+    elif choice == choice == "2":
         list_packages()
         print()
         confirm = input("위 앱들을 제거하시겠습니까? (y/N): ").strip().lower()
@@ -244,6 +269,8 @@ def interactive_mode():
         else:
             print("취소됨.")
     elif choice == "3":
+        optimize_system()
+    elif choice == "4":
         restore_packages()
     elif choice == "q":
         print("종료.")

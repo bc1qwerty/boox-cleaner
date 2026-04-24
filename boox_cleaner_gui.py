@@ -1,19 +1,20 @@
 """
-Boox Cleaner - GUI v2.2
+Boox Cleaner - GUI v2.3
 ========================
 Boox E-ink 기기 블로트웨어 제거 + 시스템 최적화 도구.
 기기를 자동 감지하여 모델별 제거 대상을 표시합니다.
 
 지원 기기:
-  - Boox Leaf3 (D60, Android 11, 펌웨어 D60_SMT_V02_2022_0309)
-  - Boox Palma2 Pro (Palma2_Pro_C, Android 15, 펌웨어 4.1.1-rel)
+  - Boox Leaf3 (D60, Android 11)
+  - Boox Palma2 Pro (Palma2_Pro_C, Android 13-15)
 
-v2.2 변경사항 (2026-04-12):
-  - kreader/ksync/dict 제거 목록에서 제외 (ContentBrowser 하드 의존성 확인)
-  - 이전 버전으로 정리 후 부팅 크래시(리커버리 진입) 발생 대응
+v2.3 변경사항 (2026-04-24):
+  - 시스템 가속 최적화 기능 추가 (애니메이션 제거, 로그 버퍼 확장)
+  - Palma 2 Pro 통신 관련 블로트웨어 목록 강화
+  - 최신 펌웨어 대응 및 UI 개선
 """
 
-VERSION = "2.2"
+VERSION = "2.3"
 
 import subprocess
 import sys
@@ -177,6 +178,30 @@ SIM_SERVICES = {
 
 PERFORMANCE_SETTINGS = [
     {
+        "key": "window_animation_scale",
+        "name": "창 애니메이션 끄기",
+        "desc": "E-ink 잔상 제거 및 체감 속도 향상",
+        "namespace": "global",
+        "on_value": "0",
+        "off_value": "1",
+    },
+    {
+        "key": "transition_animation_scale",
+        "name": "전환 애니메이션 끄기",
+        "desc": "E-ink 잔상 제거 및 체감 속도 향상",
+        "namespace": "global",
+        "on_value": "0",
+        "off_value": "1",
+    },
+    {
+        "key": "animator_duration_scale",
+        "name": "애니메이션 시간 0",
+        "desc": "E-ink 잔상 제거 및 체감 속도 향상",
+        "namespace": "global",
+        "on_value": "0",
+        "off_value": "1",
+    },
+    {
         "key": "background_process_limit",
         "name": "백그라운드 프로세스 제한",
         "desc": "최대 2개로 제한하여 메모리/CPU 확보",
@@ -231,6 +256,14 @@ PERFORMANCE_SETTINGS = [
         "namespace": "global",
         "on_value": "0",
         "off_value": "1",
+    },
+    {
+        "key": "log_buffer_size",
+        "name": "로그 버퍼 확장 (16M)",
+        "desc": "시스템 로그 기록으로 인한 지연 방지",
+        "namespace": "custom",
+        "on_value": "16M",
+        "off_value": "256K",
     },
 ]
 
@@ -610,9 +643,15 @@ class App(ctk.CTk):
 
     def _refresh_perf_status(self):
         for s in PERFORMANCE_SETTINGS:
-            _, val = run_adb("shell", "settings", "get", s["namespace"], s["key"])
-            val = val.strip()
-            is_optimized = (val == s["on_value"])
+            if s["namespace"] == "custom" and s["key"] == "log_buffer_size":
+                _, val = run_adb("shell", "logcat", "-g")
+                # 출력 예: "main: 256Kb (..." 또는 "main: 16Mb (..."
+                is_optimized = s["on_value"].lower() in val.lower()
+            else:
+                _, val = run_adb("shell", "settings", "get", s["namespace"], s["key"])
+                val = val.strip()
+                is_optimized = (val == s["on_value"])
+            
             self.perf_vars[s["key"]].set(is_optimized)
 
     # ── 공통 유틸 ────────────────────────────────────────
@@ -738,7 +777,9 @@ class App(ctk.CTk):
         success = 0
         for s in settings:
             value = s["on_value"] if action == "apply" else s["off_value"]
-            if value == "null":
+            if s["namespace"] == "custom" and s["key"] == "log_buffer_size":
+                _, out = run_adb("shell", "logcat", "-G", value)
+            elif value == "null":
                 _, out = run_adb("shell", "settings", "delete", s["namespace"], s["key"])
             else:
                 _, out = run_adb("shell", "settings", "put", s["namespace"], s["key"], value)
