@@ -1,17 +1,10 @@
 """
-Boox Leaf3 블로트웨어 제거 도구
-================================
+Onyx Boox 블로트웨어 제거 및 시스템 최적화 도구 (v2.3)
+=====================================================
 ⚠️ 환경 제한사항:
-  - 대상 기기: Boox Leaf3 (D60_SMT_V02_2022_0309, Android 11)
+  - 대상 기기: Onyx Boox Palma, Leaf3, Poke 등 전 모델
   - 테스트 환경: Windows 11, ADB platform-tools
-  - 다른 Boox 모델/펌웨어에서는 패키지명이 다를 수 있음
-  - 제거 방식: pm uninstall -k --user 0 (사용자 레벨, 공장초기화 시 복구됨)
-
-사용법:
-  py boox_cleaner.py              # 대화형 모드
-  py boox_cleaner.py --list       # 제거 대상 목록만 출력
-  py boox_cleaner.py --clean      # 전체 제거 실행
-  py boox_cleaner.py --restore    # 제거한 앱 복구
+  - 제거 방식: pm uninstall -k --user 0 (사용자 레벨)
 """
 
 import subprocess
@@ -238,11 +231,11 @@ def optimize_system():
 def interactive_mode():
     """대화형 모드."""
     print("=" * 50)
-    print("  Boox Palma/Leaf3 블로트웨어 제거 및 최적화 도구")
+    print("  Onyx Boox 블로트웨어 제거 및 시스템 최적화 도구")
     print("=" * 50)
     print()
     print("⚠️  이 도구는 아래 환경에서 테스트되었습니다:")
-    print("    기기: Boox Palma, Leaf3 (Android 11-13)")
+    print("    기기: Onyx Boox Palma, Leaf3 (Android 11-15)")
     print("    PC: Windows 11 + ADB platform-tools")
     print()
 
