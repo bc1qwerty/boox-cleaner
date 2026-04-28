@@ -1,6 +1,12 @@
 ═══════════════════════════════════════════════════════
-  Boox Cleaner v2.2
+  Boox Cleaner v2.3
 ═══════════════════════════════════════════════════════
+
+■ v2.3 변경사항 (2026-04-28)
+  [!] 하드웨어 보호 로직 추가:
+      - KEEP_PACKAGES(필수 패키지)에 등록된 항목은 사용자 선택 시에도
+        삭제 프로세스에서 강제로 제외(SKIP)되도록 로직이 강화되었습니다.
+      - 대상: kreader, ksync, dict 등 부팅 및 시스템 코어 필수 앱.
 
 ■ v2.2 변경사항 (2026-04-12)
   [!] 중요: v2.1 이하에서 정리 후 부팅 크래시(리커버리 진입)
@@ -49,7 +55,7 @@
      - Activity Launcher > Settings > DevelopmentSettings > USB 디버깅 켜기
   2. USB 케이블로 PC에 연결합니다.
   3. 기기에서 "USB 디버깅 허용" 팝업이 뜨면 허용합니다.
-  4. BooxCleaner_v2.2.exe 를 실행합니다.
+  4. BooxCleaner_v2.3.exe 를 실행합니다.
   5. 기기가 자동 감지되면 제거할 앱을 선택하고 "선택 앱 제거" 클릭.
 
 ■ 주의사항
@@ -61,7 +67,7 @@
 
 ■ 폴더 구조
   BooxCleaner/
-  ├── BooxCleaner_v2.2.exe       (메인 프로그램)
+  ├── BooxCleaner_v2.3.exe       (메인 프로그램)
   ├── platform-tools/            (ADB 포함)
   │   ├── adb.exe
   │   ├── AdbWinApi.dll
