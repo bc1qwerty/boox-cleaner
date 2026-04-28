@@ -693,6 +693,9 @@ class App(ctk.CTk):
         success, fail = 0, 0
         for pkg, name in targets:
             if action == "uninstall":
+                if pkg in KEEP_PACKAGES:
+                    self.after(0, self._log, f"  [SKIP] {name} ({pkg}) - 시스템 필수 패키지로 보호됨")
+                    continue
                 _, out = run_adb("shell", "pm", "uninstall", "-k", "--user", "0", pkg)
                 ok = "Success" in out
             else:

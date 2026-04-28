@@ -174,6 +174,10 @@ def clean_packages():
     print(f"\n{len(targets)}개 앱을 제거합니다...\n")
     success, fail = 0, 0
     for pkg, name, category in targets:
+        if pkg in KEEP_PACKAGES:
+            print(f"  [SKIP] {name} ({pkg}) - 시스템 필수 패키지로 제거가 차단되었습니다.")
+            continue
+        
         code, out = run_adb("shell", "pm", "uninstall", "-k", "--user", "0", pkg)
         if "Success" in out:
             print(f"  [OK] {name} ({pkg})")
